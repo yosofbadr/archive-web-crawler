@@ -14,10 +14,11 @@ import (
 type Option func(*Crawler)
 
 type Crawler struct {
-	startURL *url.URL
-	workers  int
-	logger   *slog.Logger
-	fetcher  fetcher.HTTPFetcher
+	startURL   *url.URL
+	targetHost string
+	workers    int
+	logger     *slog.Logger
+	fetcher    fetcher.HTTPFetcher
 
 	waitGroup sync.WaitGroup
 }
@@ -29,10 +30,11 @@ func New(startURL string, opts ...Option) (*Crawler, error) {
 	}
 
 	crawler := &Crawler{
-		startURL: parsedURL,
-		workers:  5,
-		logger:   slog.New(slog.NewTextHandler(os.Stdout, nil)),
-		fetcher:  nil,
+		startURL:   parsedURL,
+		targetHost: parsedURL.Host,
+		workers:    5,
+		logger:     slog.New(slog.NewTextHandler(os.Stdout, nil)),
+		fetcher:    nil,
 	}
 
 	for _, opt := range opts {
@@ -102,16 +104,21 @@ func (crawler *Crawler) processURL(currentURL *url.URL, tasks chan<- *url.URL) {
 		return
 	}
 
-	// TODO: Process links
 	log.Info("Extracted links", "count", len(links))
 
 	var foundLinks []string
 	for _, linkURL := range links {
 		foundLinks = append(foundLinks, linkURL.String())
-		crawler.waitGroup.Add(1)
-		go func(u *url.URL) { tasks <- u }(linkURL)
+		if crawler.isInScope(linkURL) {
+			crawler.waitGroup.Add(1)
+			go func(u *url.URL) { tasks <- u }(linkURL)
+		}
 	}
 	fmt.Printf("Page: %s\nLinks: %v\n\n", normalisedURL, foundLinks)
+}
+
+func (crawler *Crawler) isInScope(url *url.URL) bool {
+	return url.Host == crawler.targetHost
 }
 
 // normaliseURL removes the fragment (#) from a URL to treat it as canonical.
