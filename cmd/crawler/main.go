@@ -3,9 +3,12 @@ package main
 import (
 	"flag"
 	"log/slog"
+	"net/http"
 	"os"
+	"time"
 
 	"github.com/yosofbadr/WebCrawler/internal/crawler"
+	"github.com/yosofbadr/WebCrawler/internal/fetcher"
 )
 
 func main() {
@@ -19,7 +22,13 @@ func main() {
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
-	crawler, err := crawler.New(*startURL, crawler.WithLogger(logger))
+	httpClient := &http.Client{
+		Timeout: 10 * time.Second,
+	}
+
+	fetcher := fetcher.New(httpClient)
+
+	crawler, err := crawler.New(*startURL, crawler.WithLogger(logger), crawler.WithFetcher(fetcher))
 	if err != nil {
 		logger.Error("Failed to create crawler", "error", err)
 		os.Exit(1)

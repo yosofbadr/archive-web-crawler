@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"net/url"
 	"os"
+
+	"github.com/yosofbadr/WebCrawler/internal/fetcher"
 )
 
 type Option func(*Crawler)
@@ -12,6 +14,7 @@ type Option func(*Crawler)
 type Crawler struct {
 	startURL *url.URL
 	logger   *slog.Logger
+	fetcher  fetcher.HTTPFetcher
 }
 
 func New(startURL string, opts ...Option) (*Crawler, error) {
@@ -23,10 +26,15 @@ func New(startURL string, opts ...Option) (*Crawler, error) {
 	crawler := &Crawler{
 		startURL: parsedURL,
 		logger:   slog.New(slog.NewTextHandler(os.Stdout, nil)),
+		fetcher:  nil,
 	}
 
 	for _, opt := range opts {
 		opt(crawler)
+	}
+
+	if crawler.fetcher == nil {
+		return nil, fmt.Errorf("fetcher is not set")
 	}
 
 	return crawler, nil
@@ -35,6 +43,12 @@ func New(startURL string, opts ...Option) (*Crawler, error) {
 func WithLogger(logger *slog.Logger) Option {
 	return func(crawler *Crawler) {
 		crawler.logger = logger
+	}
+}
+
+func WithFetcher(fetcher fetcher.HTTPFetcher) Option {
+	return func(crawler *Crawler) {
+		crawler.fetcher = fetcher
 	}
 }
 
