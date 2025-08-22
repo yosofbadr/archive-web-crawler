@@ -22,7 +22,7 @@ type Crawler struct {
 	limiter    *rate.Limiter
 	logger     *slog.Logger
 	fetcher    fetcher.HTTPFetcher
-	storage    *storage.Storage
+	storage    storage.StorageSaver
 
 	visited   sync.Map
 	waitGroup sync.WaitGroup
@@ -41,6 +41,7 @@ func New(startURL string, opts ...Option) (*Crawler, error) {
 		limiter:    rate.NewLimiter(10, 1),
 		logger:     slog.New(slog.NewTextHandler(os.Stdout, nil)),
 		fetcher:    nil,
+		storage:    nil,
 	}
 
 	for _, opt := range opts {
@@ -66,7 +67,7 @@ func WithFetcher(fetcher fetcher.HTTPFetcher) Option {
 	}
 }
 
-func WithStorage(storage *storage.Storage) Option {
+func WithStorage(storage storage.StorageSaver) Option {
 	return func(crawler *Crawler) {
 		crawler.storage = storage
 	}
@@ -83,27 +84,28 @@ func (crawler *Crawler) Crawl() {
 
 	tasks := make(chan *url.URL)
 
-	crawler.waitGroup.Add(1)
+	crawler.waitGroup.Add(1) // Add for the initial URL
 	go func() {
 		tasks <- crawler.startURL
 	}()
 
 	for i := 0; i < crawler.workers; i++ {
-		go crawler.worker(i, tasks)
+		go crawler.worker(tasks)
 	}
 
 	crawler.waitGroup.Wait()
 	close(tasks)
 }
 
-func (crawler *Crawler) worker(id int, tasks chan *url.URL) {
+func (crawler *Crawler) worker(tasks chan *url.URL) {
 	for currentURL := range tasks {
 		crawler.processURL(currentURL, tasks)
-		crawler.waitGroup.Done()
 	}
 }
 
 func (crawler *Crawler) processURL(currentURL *url.URL, tasks chan<- *url.URL) {
+	defer crawler.waitGroup.Done() // Mark this task as done when processing is complete
+
 	normalisedURL := normaliseURL(currentURL)
 
 	if !crawler.markAsVisited(normalisedURL) {
@@ -128,19 +130,19 @@ func (crawler *Crawler) processURL(currentURL *url.URL, tasks chan<- *url.URL) {
 
 	log.Info("Extracted links", "count", len(links))
 
-	result := &storage.Result{
+	result := storage.Result{
 		Page: normalisedURL,
 	}
 	for _, linkURL := range links {
 		result.Links = append(result.Links, linkURL.String())
 		if crawler.isInScope(linkURL) {
-			crawler.waitGroup.Add(1)
+			crawler.waitGroup.Add(1) // Add for each new in-scope link
 			go func(url *url.URL) { tasks <- url }(linkURL)
 		}
 	}
 
 	if crawler.storage != nil {
-		if err := crawler.storage.Save(result); err != nil {
+		if err := crawler.storage.Save(&result); err != nil {
 			log.Error("Failed to save result", "error", err)
 		}
 	}
