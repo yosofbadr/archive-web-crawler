@@ -104,6 +104,14 @@ func (crawler *Crawler) processURL(currentURL *url.URL, tasks chan<- *url.URL) {
 
 	// TODO: Process links
 	log.Info("Extracted links", "count", len(links))
+
+	var foundLinks []string
+	for _, linkURL := range links {
+		foundLinks = append(foundLinks, linkURL.String())
+		crawler.waitGroup.Add(1)
+		go func(u *url.URL) { tasks <- u }(linkURL)
+	}
+	fmt.Printf("Page: %s\nLinks: %v\n\n", normalisedURL, foundLinks)
 }
 
 // normaliseURL removes the fragment (#) from a URL to treat it as canonical.
