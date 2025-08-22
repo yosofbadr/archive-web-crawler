@@ -9,6 +9,7 @@ import (
 
 	"github.com/yosofbadr/WebCrawler/internal/fetcher"
 	"github.com/yosofbadr/WebCrawler/internal/link"
+	"github.com/yosofbadr/WebCrawler/internal/storage"
 	"golang.org/x/time/rate"
 )
 
@@ -21,9 +22,9 @@ type Crawler struct {
 	limiter    *rate.Limiter
 	logger     *slog.Logger
 	fetcher    fetcher.HTTPFetcher
+	storage    *storage.Storage
 
-	visited   map[string]struct{}
-	visitedMu sync.Mutex
+	visited   sync.Map
 	waitGroup sync.WaitGroup
 }
 
@@ -36,11 +37,10 @@ func New(startURL string, opts ...Option) (*Crawler, error) {
 	crawler := &Crawler{
 		startURL:   parsedURL,
 		targetHost: parsedURL.Host,
-		workers:    5,
+		workers:    10,
 		limiter:    rate.NewLimiter(10, 1),
 		logger:     slog.New(slog.NewTextHandler(os.Stdout, nil)),
 		fetcher:    nil,
-		visited:    make(map[string]struct{}),
 	}
 
 	for _, opt := range opts {
@@ -63,6 +63,18 @@ func WithLogger(logger *slog.Logger) Option {
 func WithFetcher(fetcher fetcher.HTTPFetcher) Option {
 	return func(crawler *Crawler) {
 		crawler.fetcher = fetcher
+	}
+}
+
+func WithStorage(storage *storage.Storage) Option {
+	return func(crawler *Crawler) {
+		crawler.storage = storage
+	}
+}
+
+func WithWorkers(workers int) Option {
+	return func(c *Crawler) {
+		c.workers = workers
 	}
 }
 
@@ -116,15 +128,22 @@ func (crawler *Crawler) processURL(currentURL *url.URL, tasks chan<- *url.URL) {
 
 	log.Info("Extracted links", "count", len(links))
 
-	var foundLinks []string
+	result := &storage.Result{
+		Page: normalisedURL,
+	}
 	for _, linkURL := range links {
-		foundLinks = append(foundLinks, linkURL.String())
+		result.Links = append(result.Links, linkURL.String())
 		if crawler.isInScope(linkURL) {
 			crawler.waitGroup.Add(1)
 			go func(url *url.URL) { tasks <- url }(linkURL)
 		}
 	}
-	fmt.Printf("Page: %s\nLinks: %v\n\n", normalisedURL, foundLinks)
+
+	if crawler.storage != nil {
+		if err := crawler.storage.Save(result); err != nil {
+			log.Error("Failed to save result", "error", err)
+		}
+	}
 }
 
 func (crawler *Crawler) isInScope(url *url.URL) bool {
@@ -132,14 +151,8 @@ func (crawler *Crawler) isInScope(url *url.URL) bool {
 }
 
 func (crawler *Crawler) markAsVisited(url string) bool {
-	crawler.visitedMu.Lock()
-	defer crawler.visitedMu.Unlock()
-
-	if _, ok := crawler.visited[url]; ok {
-		return false
-	}
-	crawler.visited[url] = struct{}{}
-	return true
+	_, loaded := crawler.visited.LoadOrStore(url, struct{}{})
+	return !loaded
 }
 
 // normaliseURL removes the fragment (#) from a URL to treat it as canonical.
