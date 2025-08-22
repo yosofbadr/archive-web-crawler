@@ -20,6 +20,8 @@ type Crawler struct {
 	logger     *slog.Logger
 	fetcher    fetcher.HTTPFetcher
 
+	visited   map[string]struct{}
+	visitedMu sync.Mutex
 	waitGroup sync.WaitGroup
 }
 
@@ -35,6 +37,7 @@ func New(startURL string, opts ...Option) (*Crawler, error) {
 		workers:    5,
 		logger:     slog.New(slog.NewTextHandler(os.Stdout, nil)),
 		fetcher:    nil,
+		visited:    make(map[string]struct{}),
 	}
 
 	for _, opt := range opts {
@@ -88,6 +91,10 @@ func (crawler *Crawler) worker(id int, tasks chan *url.URL) {
 func (crawler *Crawler) processURL(currentURL *url.URL, tasks chan<- *url.URL) {
 	normalisedURL := normaliseURL(currentURL)
 
+	if !crawler.markAsVisited(normalisedURL) {
+		return
+	}
+
 	log := crawler.logger.With("url", normalisedURL)
 	log.Info("Processing URL")
 
@@ -111,7 +118,7 @@ func (crawler *Crawler) processURL(currentURL *url.URL, tasks chan<- *url.URL) {
 		foundLinks = append(foundLinks, linkURL.String())
 		if crawler.isInScope(linkURL) {
 			crawler.waitGroup.Add(1)
-			go func(u *url.URL) { tasks <- u }(linkURL)
+			go func(url *url.URL) { tasks <- url }(linkURL)
 		}
 	}
 	fmt.Printf("Page: %s\nLinks: %v\n\n", normalisedURL, foundLinks)
@@ -119,6 +126,17 @@ func (crawler *Crawler) processURL(currentURL *url.URL, tasks chan<- *url.URL) {
 
 func (crawler *Crawler) isInScope(url *url.URL) bool {
 	return url.Host == crawler.targetHost
+}
+
+func (crawler *Crawler) markAsVisited(url string) bool {
+	crawler.visitedMu.Lock()
+	defer crawler.visitedMu.Unlock()
+
+	if _, ok := crawler.visited[url]; ok {
+		return false
+	}
+	crawler.visited[url] = struct{}{}
+	return true
 }
 
 // normaliseURL removes the fragment (#) from a URL to treat it as canonical.
