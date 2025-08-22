@@ -1,4 +1,3 @@
-
 package storage
 
 import (
@@ -11,6 +10,12 @@ import (
 type Result struct {
 	Page  string   `json:"page"`
 	Links []string `json:"links"`
+}
+
+// StorageSaver defines the interface for saving crawl results.
+type StorageSaver interface {
+	Save(result *Result) error
+	Close() error
 }
 
 type Storage struct {
