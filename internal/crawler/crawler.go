@@ -58,16 +58,23 @@ func (crawler *Crawler) Crawl() {
 }
 
 func (crawler *Crawler) ProcessURL(currentURL *url.URL) {
-	normalisedURL := normalizeURL(currentURL)
+	normalisedURL := normaliseURL(currentURL)
 
 	log := crawler.logger.With("url", normalisedURL)
 	log.Info("Processing URL")
 
-	// TODO: Fetch and parse the page, extract links, etc.
+	body, err := crawler.fetcher.Fetch(normalisedURL)
+	if err != nil {
+		log.Error("Failed to fetch page", "error", err)
+		return
+	}
+	defer body.Close()
+
+	// TODO: Extract and process links
 }
 
-// normalizeURL removes the fragment (#) from a URL to treat it as canonical.
-func normalizeURL(url *url.URL) string {
+// normaliseURL removes the fragment (#) from a URL to treat it as canonical.
+func normaliseURL(url *url.URL) string {
 	url.Fragment = ""
 	return url.String()
 }
