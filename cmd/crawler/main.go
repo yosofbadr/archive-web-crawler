@@ -4,6 +4,8 @@ import (
 	"flag"
 	"log/slog"
 	"os"
+
+	"github.com/yosofbadr/WebCrawler/internal/crawler"
 )
 
 func main() {
@@ -17,7 +19,14 @@ func main() {
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
-	// TODO: Initialize and start the crawler with the provided URL
+	crawler, err := crawler.New(*startURL, crawler.WithLogger(logger))
+	if err != nil {
+		logger.Error("Failed to create crawler", "error", err)
+		os.Exit(1)
+	}
+
 	logger.Info("Starting crawler", "url", *startURL)
+	// TODO: Start the crawling process
+	logger.Info("Starting crawling process...", crawler)
 	logger.Info("Crawler finished")
 }
