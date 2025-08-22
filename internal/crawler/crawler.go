@@ -9,6 +9,7 @@ import (
 
 	"github.com/yosofbadr/WebCrawler/internal/fetcher"
 	"github.com/yosofbadr/WebCrawler/internal/link"
+	"golang.org/x/time/rate"
 )
 
 type Option func(*Crawler)
@@ -17,6 +18,7 @@ type Crawler struct {
 	startURL   *url.URL
 	targetHost string
 	workers    int
+	limiter    *rate.Limiter
 	logger     *slog.Logger
 	fetcher    fetcher.HTTPFetcher
 
@@ -35,6 +37,7 @@ func New(startURL string, opts ...Option) (*Crawler, error) {
 		startURL:   parsedURL,
 		targetHost: parsedURL.Host,
 		workers:    5,
+		limiter:    rate.NewLimiter(10, 1),
 		logger:     slog.New(slog.NewTextHandler(os.Stdout, nil)),
 		fetcher:    nil,
 		visited:    make(map[string]struct{}),

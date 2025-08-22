@@ -30,7 +30,7 @@ func (fetcher *Fetcher) Fetch(url string) (io.ReadCloser, error) {
 		return nil, fmt.Errorf("failed to fetch %s: %w", url, err)
 	}
 
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		resp.Body.Close()
 		return nil, fmt.Errorf("bad status for %s: %s", url, resp.Status)
 	}
