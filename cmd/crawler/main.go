@@ -25,8 +25,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	logger.Info("Starting crawler", "url", *startURL)
-	// TODO: Start the crawling process
-	logger.Info("Starting crawling process...", crawler)
+	crawler.Crawl()
 	logger.Info("Crawler finished")
 }

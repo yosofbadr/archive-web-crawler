@@ -37,3 +37,23 @@ func WithLogger(logger *slog.Logger) Option {
 		crawler.logger = logger
 	}
 }
+
+func (crawler *Crawler) Crawl() {
+	crawler.logger.Info("Starting crawling process...", "url", crawler.startURL.String())
+	crawler.ProcessURL(crawler.startURL)
+}
+
+func (crawler *Crawler) ProcessURL(currentURL *url.URL) {
+	normalisedURL := normalizeURL(currentURL)
+
+	log := crawler.logger.With("url", normalisedURL)
+	log.Info("Processing URL")
+
+	// TODO: Fetch and parse the page, extract links, etc.
+}
+
+// normalizeURL removes the fragment (#) from a URL to treat it as canonical.
+func normalizeURL(url *url.URL) string {
+	url.Fragment = ""
+	return url.String()
+}
