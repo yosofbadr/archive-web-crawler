@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/url"
 	"os"
+	"sync"
 
 	"github.com/yosofbadr/WebCrawler/internal/fetcher"
 	"github.com/yosofbadr/WebCrawler/internal/link"
@@ -14,8 +15,11 @@ type Option func(*Crawler)
 
 type Crawler struct {
 	startURL *url.URL
+	workers  int
 	logger   *slog.Logger
 	fetcher  fetcher.HTTPFetcher
+
+	waitGroup sync.WaitGroup
 }
 
 func New(startURL string, opts ...Option) (*Crawler, error) {
@@ -26,6 +30,7 @@ func New(startURL string, opts ...Option) (*Crawler, error) {
 
 	crawler := &Crawler{
 		startURL: parsedURL,
+		workers:  5,
 		logger:   slog.New(slog.NewTextHandler(os.Stdout, nil)),
 		fetcher:  nil,
 	}
@@ -55,10 +60,30 @@ func WithFetcher(fetcher fetcher.HTTPFetcher) Option {
 
 func (crawler *Crawler) Crawl() {
 	crawler.logger.Info("Starting crawling process...", "url", crawler.startURL.String())
-	crawler.ProcessURL(crawler.startURL)
+
+	tasks := make(chan *url.URL)
+
+	crawler.waitGroup.Add(1)
+	go func() {
+		tasks <- crawler.startURL
+	}()
+
+	for i := 0; i < crawler.workers; i++ {
+		go crawler.worker(i, tasks)
+	}
+
+	crawler.waitGroup.Wait()
+	close(tasks)
 }
 
-func (crawler *Crawler) ProcessURL(currentURL *url.URL) {
+func (crawler *Crawler) worker(id int, tasks chan *url.URL) {
+	for currentURL := range tasks {
+		crawler.processURL(currentURL, tasks)
+		crawler.waitGroup.Done()
+	}
+}
+
+func (crawler *Crawler) processURL(currentURL *url.URL, tasks chan<- *url.URL) {
 	normalisedURL := normaliseURL(currentURL)
 
 	log := crawler.logger.With("url", normalisedURL)
