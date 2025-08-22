@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/yosofbadr/WebCrawler/internal/fetcher"
+	"github.com/yosofbadr/WebCrawler/internal/link"
 )
 
 type Option func(*Crawler)
@@ -70,7 +71,14 @@ func (crawler *Crawler) ProcessURL(currentURL *url.URL) {
 	}
 	defer body.Close()
 
-	// TODO: Extract and process links
+	links, err := link.Extract(body, currentURL)
+	if err != nil {
+		log.Error("Failed to extract links", "error", err)
+		return
+	}
+
+	// TODO: Process links
+	log.Info("Extracted links", "count", len(links))
 }
 
 // normaliseURL removes the fragment (#) from a URL to treat it as canonical.
