@@ -1,0 +1,28 @@
+# Binaries
+bin/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Build output
+/build/
+/dist/
+
+# IDE
+.vscode/
+.idea/
+
+# Test caches
+.coverage/
+
+# Go
+*.test
+vendor/
+
+# Logs
+logs/
+*.log
+
+# OS
+.DS_Store
